@@ -15,8 +15,8 @@ class Vid2Ascii {
 
 		struct input_vid_struct : base_vid_struct {
 			public:
-				int total_frames;
-				float fps;
+				double total_frames;
+				double fps;
 				float total_duration;
 
 		};
@@ -36,7 +36,7 @@ class Vid2Ascii {
 
 		std::string filepath;
 
-		int num_map_chars;
+		size_t num_map_chars;
 		int frames_processed;
 		char* map;
 		cv::Mat* vid_frames;
@@ -51,7 +51,7 @@ class Vid2Ascii {
 		*
 		*	@return Void.
 		*/
-		void progressBar(int idx);
+		void progressBar(int idx, int total_frames);
 
 		void display_adjustedOutputSize(int ascii_height, int ascii_width);
 

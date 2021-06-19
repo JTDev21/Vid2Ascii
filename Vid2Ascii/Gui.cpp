@@ -12,9 +12,8 @@ void Vid2Ascii::setCursorPosition(int x, int y)
 	SetConsoleCursorPosition(hOut, coord);
 }
 
-void Vid2Ascii::progressBar(int idx)
+void Vid2Ascii::progressBar(int idx, int total_frames)
 {
-	int total_frames = input_vid.total_frames;
 	float barWidth = 40;
 	float progress = idx * 1.0 / total_frames;
 	float pos = barWidth * progress;
@@ -27,7 +26,7 @@ void Vid2Ascii::progressBar(int idx)
 		(i <= pos ? bar += "#" : bar += "=");
 	}
 	bar += "]";
-	std::cout << bar << " " << idx << "/" << total_frames << "    " << std::endl;
+	std::cout << bar << " " << idx << "/" << total_frames << "    ";
 }
 
 void Vid2Ascii::display_adjustedOutputSize(int ascii_height, int ascii_width) 
