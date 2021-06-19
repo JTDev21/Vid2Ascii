@@ -1,1 +1,0 @@
-# Vid2Ascii
