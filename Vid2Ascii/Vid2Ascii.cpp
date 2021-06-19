@@ -1,12 +1,16 @@
 #include <chrono>
 #include <iostream>
+#include <mutex>
 #include <opencv2/opencv.hpp>
 #include <string>
+#include <thread>
 #include "Vid2Ascii.h"
 
+std::mutex mu;
 
 Vid2Ascii::Vid2Ascii(std::string _filepath, std::string intensity_chars)
 {
+	max_threads = std::thread::hardware_concurrency();
 	frames_processed = 0;
 
 	cv::VideoCapture video(_filepath);
@@ -19,7 +23,7 @@ Vid2Ascii::Vid2Ascii(std::string _filepath, std::string intensity_chars)
 	filepath = _filepath;
 
 	input_vid.total_frames = video.get(cv::CAP_PROP_FRAME_COUNT) - 1;
-	//input_vid.total_frames = 100;
+	//input_vid.total_frames = 500;
 
 	int total_frames = input_vid.total_frames;
 	input_vid.fps = video.get(cv::CAP_PROP_FPS);
@@ -52,7 +56,44 @@ Vid2Ascii::~Vid2Ascii()
 	delete[] ascii_frames;
 }
 
+void Vid2Ascii::resizeNStor(unsigned int th_id, unsigned int max_ths, bool resize) {
+	int total_frames = input_vid.total_frames; // Number of frames in video
+	int max_frames = total_frames / max_ths; // Number of frames to be shared among threads
 
+	int start = (th_id - 1) * max_frames;
+	int end = (th_id != max_ths ?
+		(th_id - 1) * max_frames + max_frames - 1 :
+		total_frames - 1);
+
+	int output_width = output_vid.width;
+	int output_height = output_vid.height;
+
+	cv::VideoCapture video(filepath);
+	video.set(cv::CAP_PROP_POS_FRAMES, start);
+	cv::Mat frame;
+
+	for (int i = start; i <= end; i++) {
+		video >> frame;
+		if (frame.empty())
+			break;
+		if (!resize)
+			cv::resize(frame, frame, cv::Size(output_width, output_height));
+		vid_frames[i] = frame.clone();
+
+		mu.lock();
+		setCursorPosition(0, 0 + th_id);
+		frames_processed++;
+		std::cout << "Threads[" << th_id << "]";
+		progressBar(i - start, end - start);
+
+		setCursorPosition(0, 1 + max_ths);
+		std::cout << "[Progress]";
+		progressBar(frames_processed, total_frames);
+		mu.unlock();
+	}
+	// Deallocate memory and clear *capture pointer
+	video.release();
+}
 
 void Vid2Ascii::readFrames() 
 {
@@ -63,24 +104,22 @@ void Vid2Ascii::readFrames()
 	else
 		std::cout << "Reading frames" << std::endl;
 
-	cv::VideoCapture video(filepath);
-	cv::Mat frame;
-
-	int output_width = output_vid.width;
-	int output_height = output_vid.height;
-	int total_frames = input_vid.total_frames;
-
-	for(int i = 0; i < total_frames; i++) {
-		video >> frame;
-		if(!resize)
-			cv::resize(frame, frame, cv::Size(output_width, output_height));
-		vid_frames[i] = frame.clone();
-
-		setCursorPosition(0,1);
-		progressBar(i, total_frames);
+	if (max_threads == 0) {
+		resizeNStor(1, 1, resize);
 	}
-	// Deallocate memory and clear *capture pointer
-	video.release();
+	else {
+		std::thread* threads = new std::thread[max_threads];
+		for (int i = 0; i < max_threads; i++) {
+			threads[i] = std::thread([&] { resizeNStor(i + 1, max_threads, resize); });
+			cv::waitKey(100);
+		}
+
+		for (int i = 0; i < max_threads; i++) {
+			threads[i].join();
+		}
+		delete[] threads;
+	}
+	frames_processed = 0;
 }
 
 void Vid2Ascii::playBack()
@@ -109,7 +148,6 @@ void Vid2Ascii::playBack()
 		progressBar(i, total_frames);
 		std::cout << "Duration " << (int)elapsed_seconds.count() << "s --- " << total_duration << "s       " << std::endl;
 
-
 		curr_fps = i / elapsed_seconds.count();
 		std::cout << "FPS " << curr_fps << "       " << std::endl;
 		if (input_vid.fps < curr_fps)
@@ -127,21 +165,27 @@ void Vid2Ascii::playBack()
 	cv::destroyAllWindows();
 }
 
-void Vid2Ascii::convert(float resize_ratio, float cell_width = 2.5, float cell_height = 7)
+
+void Vid2Ascii::generateAscii(unsigned int th_id, unsigned int max_ths)
 {
-	adjustOutputSize(resize_ratio, cell_height, cell_width);
-	readFrames();
-
-	setCursorPosition(0, 3);
-	std::cout << "Video to Ascii Conversion" << std::endl;
-
-	auto start = std::chrono::steady_clock::now();
+	if (th_id <= 0 || max_ths <= 0) {
+		std::cout << "You must have nonzero positive integers for th_id/max_ths!" << std::endl;
+		exit(0);
+	}
 	int total_frames = input_vid.total_frames;
+	int max_frames = total_frames / max_ths;
+
+	int start = (th_id - 1) * max_frames;
+	int end = (th_id != max_ths ?
+		(th_id - 1) * max_frames + max_frames - 1 :
+		total_frames - 1);
+
 	int ascii_output_height = output_vid.ascii_height;
 	int ascii_output_width = output_vid.ascii_width;
-	cell_width = output_vid.cell_width;
-	cell_height = output_vid.cell_height;
-	for (int i = 0; i < total_frames; i++) {
+	float cell_width = output_vid.cell_width;
+	float cell_height = output_vid.cell_height;
+
+	for (int i = start; i <= end; i++) {
 		std::string placeholder;
 		for (int hnum = 0; hnum < ascii_output_height; hnum++) {
 			for (int wnum = 0; wnum < ascii_output_width; wnum++) {
@@ -166,15 +210,62 @@ void Vid2Ascii::convert(float resize_ratio, float cell_width = 2.5, float cell_h
 		}
 		ascii_frames[i] = placeholder;
 
-		setCursorPosition(0, 4);
-		progressBar(i, total_frames);
+		mu.lock();
+		setCursorPosition(0, 3 + max_ths + th_id);
+		frames_processed++;
+		std::cout << "Threads[" << th_id << "]";
+		progressBar(i - start, end-start);
+		std::cout << " start_idx: " << start << " end_idx: " << end << std::endl;
+
+		setCursorPosition(0, 4 + (2*max_ths));
+		std::cout << "[Progress]";
+		progressBar(frames_processed, total_frames);
+		mu.unlock();
 	}
+}
+
+void Vid2Ascii::convert(float resize_ratio, float cell_width, float cell_height)
+{
+	adjustOutputSize(resize_ratio, cell_height, cell_width);
+
+	auto start = std::chrono::steady_clock::now();
+	readFrames();
+
+	if (max_threads == 0)
+		setCursorPosition(0, 4);
+	else
+		setCursorPosition(0, 3 + max_threads);
+
+	std::cout << "Video to Ascii Conversion" << std::endl;
+
+	if (max_threads == 0) {
+		generateAscii(1, 1);
+		playBack();
+	}
+	else {
+		std::thread* threads = new std::thread[max_threads];
+		for (int i = 0; i < max_threads; i++) {
+			threads[i] = std::thread([&] { generateAscii(i + 1, max_threads); });
+			cv::waitKey(100);
+		}
+
+		for (int i = 0; i < max_threads; i++) {
+			threads[i].join();
+		}
+		delete[] threads;
+	}
+	frames_processed = 0;
 	auto end = std::chrono::steady_clock::now();
 	std::chrono::duration<double> elapsed_seconds = end - start;
+
+	if(max_threads == 0)
+		setCursorPosition(0, 7);
+	else
+		setCursorPosition(0, 5 + (2 * max_threads));
 	std::cout << "---" << std::endl;
 	std::cout << "Processing time: " << elapsed_seconds.count() << "s" << std::endl;
 	std::cout << "---" << std::endl;
-	
+
 	std::cout << "Press any key to start ..." << std::endl;
 	char wait_input;
 	std::cin >> wait_input;

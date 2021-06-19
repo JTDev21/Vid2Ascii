@@ -36,8 +36,10 @@ class Vid2Ascii {
 
 		std::string filepath;
 
+		unsigned int max_threads;
+		double frames_processed;
+		
 		size_t num_map_chars;
-		int frames_processed;
 		char* map;
 		cv::Mat* vid_frames;
 		std::string* ascii_frames;
@@ -82,6 +84,8 @@ class Vid2Ascii {
 		 */
 		void playBack();
 		
+
+		void resizeNStor(unsigned int th_id, unsigned int max_ths, bool resize);
 		/** @brief Extract frames from video file and resize frames if necessary. Store cv::Mat frame to dynamic array.
 		* 
 		*	@return Void.
@@ -103,7 +107,7 @@ class Vid2Ascii {
 		*
 		*	@return Void.
 		*/
-		void generateAscii(int th_id, int max_ths);
+		void generateAscii(unsigned int th_id, unsigned int max_ths);
 	public:
 		
 		/** @brief Constructor
