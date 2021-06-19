@@ -41,8 +41,6 @@ void Vid2Ascii::display_adjustedOutputSize(int ascii_height, int ascii_width)
 	}
 }
 
-
-/* -------------------------------------------------------- */
 void Vid2Ascii::adjustOutputSize(float _resize_ratio, float _cell_height, float _cell_width)
 {
 	system("CLS");

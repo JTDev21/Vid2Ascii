@@ -4,25 +4,25 @@
 
 int main(int argc, char** argv)
 {
-	// 1920 x 1080 - width: 236; height: 63, recommended width: 57
-	/*std::string filepath;
+	std::string filepath;
 	std::cout << "Video Path: ";
 	std::cin >> filepath;
 
+	float resize_ratio = 0;
 	float cell_width = 0;
 	float cell_height = 0;
+	
+	std::cout << "Resize ratio: ";
+	std::cin >> resize_ratio;
 
 	std::cout << "Cell Width: ";
 	std::cin >> cell_width;
 
 	std::cout << "Cell Height: ";
-	std::cin >> cell_height;*/
+	std::cin >> cell_height;
 
-
-
-	//" .'`^\",:;Il!i><~+_-?][}{1)(|\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$" // 70 char
-	Vid2Ascii vid("C:/Users/joshk/OneDrive/Desktop/bad-apple.mp4", "@#%xo;:,. ");
-	vid.convert(0.5, 2.5, 7);
+	Vid2Ascii vid(filepath, "@#%xo;:,. ");
+	vid.convert(resize_ratio, cell_width, cell_height);
 
 	return 0;
 }

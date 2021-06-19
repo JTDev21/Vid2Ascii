@@ -42,26 +42,33 @@ class Vid2Ascii {
 		cv::Mat* vid_frames;
 		std::string* ascii_frames;
 
-
-
 		/** @brief Displays progress bar.
 		*
-		*	@param n_frame Index of the current frame being processed.
-		*	@param total_frames	The total number of frames inside a video file.
+		*	@param idx Index of the current frame being processed.
+		*	@param total_frames	The total number of frames being processed.
 		*
 		*	@return Void.
 		*/
 		void progressBar(int idx, int total_frames);
 
-		void display_adjustedOutputSize(int ascii_height, int ascii_width);
-
-		/** @brief Displays the skeleton frame of an ascii image.
+		/** @brief Displays an ascii skeleton frame of the output.
 		*
 		*	The function primary use is to prevent wasting time/energy
 		*	when processing a video file only to have the user realize
 		*	the size of the output is undesirable.
+		* 
+		*	@param ascii_height
+		*	@param ascii_width
 		*
-		*	@param filepath
+		*	@return Void.
+		*/
+		void display_adjustedOutputSize(int ascii_height, int ascii_width);
+
+		/** @brief Adjusts params based on user preference
+		*
+		*	Adjust params based on user request(resize_ratio, _cell_height, _cell_width).
+		*
+		*	@param resize_ratio
 		*	@param cell_width
 		*	@param cell_height
 		*
@@ -69,20 +76,36 @@ class Vid2Ascii {
 		*/
 		void adjustOutputSize(float resize_ratio, float _cell_height, float _cell_width);
 
-		/** @brief Changes the brightness/contrast of an image.
-		 *
-		 *  @param input Input array(type: cv::Mat).
-		 *  @param output Output array(type: cv::Mat).
-		 *	@param alpha Alpha controls the contrast of an image.
-		 *	@param beta Beta controls the brightness of an image.
+		/** @brief Displays ascii_frames on console and actively adjusts current frame rate to match original. 
 		 *
 		 *  @return Void.
 		 */
-		void ctrl_brightness_contrast(cv::Mat input, cv::Mat& output, float alpha, int beta);
 		void playBack();
 		
+		/** @brief Extract frames from video file and resize frames if necessary. Store cv::Mat frame to dynamic array.
+		* 
+		*	@return Void.
+		*/
+		void readFrames();
+
+		/**	@brief Generates ascii characters based on video frame.
+		*
+		*	This algorithm is uses the pixel/area intensity method (which takes shading into account).
+		*	To map pixel/area intensity to ascii characters we use
+		*	(255 - intensity) * number of characters in map / 256.
+		*	cv::Mat roi crops the frame based on x,y position and crop height/width.
+		*
+		*	*Note: 0 < th_id and 0 < max_ths. th_id and max_ths should equal 1 if you don't know how
+		*	many threads your hardware supports.
+		*
+		*	@param th_id Assigned thread id, id should be unique.
+		*	@param max_ths Max number of threads supported by your hardware.
+		*
+		*	@return Void.
+		*/
+		void generateAscii(int th_id, int max_ths);
 	public:
-		void generateAscii(int th_id, int num_ths);
+		
 		/** @brief Constructor
 		*
 		*	@param filepath
@@ -93,9 +116,7 @@ class Vid2Ascii {
 		/** @brief Deconstructor - Deallocates map, vid_frames, ascii_frames */
 		~Vid2Ascii();
 
-		void readFrames();
-
-
+		
 		void convert(float resize_ratio, float cell_width, float cell_height);
 
 		/** @brief Moves cursor around in the console. Using (x,y) position.
@@ -109,8 +130,6 @@ class Vid2Ascii {
 		*	@return Void.
 		*/
 		void setCursorPosition(int x, int y);
-
-
 };
 
 #endif

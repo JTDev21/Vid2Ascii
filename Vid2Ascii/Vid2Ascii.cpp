@@ -1,17 +1,12 @@
 #include <chrono>
 #include <iostream>
 #include <opencv2/opencv.hpp>
-//#include <opencv2/core/utility.hpp>
 #include <string>
-#include <thread>
 #include "Vid2Ascii.h"
 
-#include <mutex>
 
 Vid2Ascii::Vid2Ascii(std::string _filepath, std::string intensity_chars)
 {
-	//output_vid.cell_height = 7;
-	//output_vid.cell_width = 2.5;
 	frames_processed = 0;
 
 	cv::VideoCapture video(_filepath);
@@ -24,7 +19,7 @@ Vid2Ascii::Vid2Ascii(std::string _filepath, std::string intensity_chars)
 	filepath = _filepath;
 
 	input_vid.total_frames = video.get(cv::CAP_PROP_FRAME_COUNT) - 1;
-	//input_vid.total_frames = 1000;
+	//input_vid.total_frames = 100;
 
 	int total_frames = input_vid.total_frames;
 	input_vid.fps = video.get(cv::CAP_PROP_FPS);
@@ -57,29 +52,6 @@ Vid2Ascii::~Vid2Ascii()
 	delete[] ascii_frames;
 }
 
-/* -------------------------------------------------------- */
-void Vid2Ascii::ctrl_brightness_contrast(cv::Mat input, cv::Mat& output, float alpha, int beta)
-{
-	/*
-		alpha - Simple contrast control
-		beta - Simple brightness control
-	*/
-	output = input.clone();
-
-	int rows = output.rows;
-	int cols = output.cols;
-	int channels = output.channels();
-
-	for (int y = 0; y < rows; y++) {
-		cv::Vec3b* ptr = output.ptr<cv::Vec3b>(y);
-		for (int x = 0; x < cols; x++) {
-			for (int c = 0; c < channels; c++) {
-				ptr[x][c] = alpha * ptr[x][c] + beta;
-			}
-		}
-	}
-}
-/* -------------------------------------------------------- */
 
 
 void Vid2Ascii::readFrames() 
@@ -155,31 +127,21 @@ void Vid2Ascii::playBack()
 	cv::destroyAllWindows();
 }
 
-/*
-	Add a function for preprocessing options
-*/
-
-std::mutex mu;
-void Vid2Ascii::generateAscii(int th_id, int max_ths)
+void Vid2Ascii::convert(float resize_ratio, float cell_width = 2.5, float cell_height = 7)
 {
-	if (th_id == 0 || max_ths == 0) {
-		std::cout << "You cannot have zero threads!" << std::endl;
-		exit(0);
-	}
+	adjustOutputSize(resize_ratio, cell_height, cell_width);
+	readFrames();
+
+	setCursorPosition(0, 3);
+	std::cout << "Video to Ascii Conversion" << std::endl;
+
+	auto start = std::chrono::steady_clock::now();
 	int total_frames = input_vid.total_frames;
-	int max_frames = total_frames / max_ths;
-
-	int start = (th_id-1) * max_frames;
-	int end = (th_id != max_ths ? 
-								(th_id-1) * max_frames + max_frames - 1 :
-								total_frames-1);
-
 	int ascii_output_height = output_vid.ascii_height;
 	int ascii_output_width = output_vid.ascii_width;
-	float cell_width = output_vid.cell_width;
-	float cell_height = output_vid.cell_height;
-
-	for (int i = start; i <= end; i++) {
+	cell_width = output_vid.cell_width;
+	cell_height = output_vid.cell_height;
+	for (int i = 0; i < total_frames; i++) {
 		std::string placeholder;
 		for (int hnum = 0; hnum < ascii_output_height; hnum++) {
 			for (int wnum = 0; wnum < ascii_output_width; wnum++) {
@@ -197,74 +159,22 @@ void Vid2Ascii::generateAscii(int th_id, int max_ths)
 				cv::Mat roi(vid_frames[i], cv::Rect(roi_x, roi_y, cell_width, cell_height));
 
 				// Calculate intensity by pixel/area
-				int intensity = cv::mean(roi)[0];
-				placeholder += map[(255 - intensity) * num_map_chars / 256];
+				float intensity = cv::mean(roi)[0];
+				placeholder += map[(int)((255 - intensity) * num_map_chars / 256)];
 			}
 			placeholder += "\n";
 		}
 		ascii_frames[i] = placeholder;
 
-		mu.lock();
-		setCursorPosition(0, 3 + th_id);
-		frames_processed++;
-		std::cout << "Threads[" << th_id << "]";
-		progressBar(i - start, end-start);
-		std::cout << " start_idx: " << start << " end_idx: " << end << std::endl;
-
-		setCursorPosition(0, 4 + max_ths);
-		std::cout << "[Progress]";
-		progressBar(frames_processed, total_frames);
-		mu.unlock();
+		setCursorPosition(0, 4);
+		progressBar(i, total_frames);
 	}
-}
-
-void Vid2Ascii::convert(float resize_ratio = 1, float cell_width = 2.5, float cell_height = 7)
-{
-	adjustOutputSize(resize_ratio, cell_height, cell_width);
-	readFrames();
-
-	/*
-		std::thread::hardware_concurrency() will return the 
-		number of concurrent threads supported by the hardware.
-		If the number of concurrent threads not supported in the
-		hardware implementation the function will return 0.
-	*/
-	
-	//unsigned int max_threads = std::thread::hardware_concurrency();
-	
-	unsigned int max_threads = 8;
-	setCursorPosition(0, 3);
-	std::cout << "Video to Ascii Conversion" << std::endl;
-	auto start = std::chrono::steady_clock::now();
-
-	// generateAscii(1,1);
-
-	std::thread th1([&] { generateAscii(1, max_threads); });
-	std::thread th2([&] { generateAscii(2, max_threads); });
-	std::thread th3([&] { generateAscii(3, max_threads); });
-	std::thread th4([&] { generateAscii(4, max_threads); });
-	std::thread th5([&] { generateAscii(5, max_threads); });
-	std::thread th6([&] { generateAscii(6, max_threads); });
-	std::thread th7([&] { generateAscii(7, max_threads); });
-	std::thread th8([&] { generateAscii(8, max_threads); });
-
-	th1.join();
-	th2.join();
-	th3.join();
-	th4.join();
-	th5.join();
-	th6.join();
-	th7.join();
-	th8.join();
-
 	auto end = std::chrono::steady_clock::now();
 	std::chrono::duration<double> elapsed_seconds = end - start;
-
-	setCursorPosition(0, 14);
 	std::cout << "---" << std::endl;
 	std::cout << "Processing time: " << elapsed_seconds.count() << "s" << std::endl;
 	std::cout << "---" << std::endl;
-
+	
 	std::cout << "Press any key to start ..." << std::endl;
 	char wait_input;
 	std::cin >> wait_input;
