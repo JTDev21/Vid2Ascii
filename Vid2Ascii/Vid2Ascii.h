@@ -23,6 +23,7 @@ class Vid2Ascii {
 
 		struct output_vid_struct : base_vid_struct {
 			public:
+				float resize_ratio;
 				float cell_height;
 				float cell_width;
 
@@ -36,6 +37,7 @@ class Vid2Ascii {
 		std::string filepath;
 
 		int num_map_chars;
+		int frames_processed;
 		char* map;
 		cv::Mat* vid_frames;
 		std::string* ascii_frames;
@@ -51,6 +53,8 @@ class Vid2Ascii {
 		*/
 		void progressBar(int idx);
 
+		void display_adjustedOutputSize(int ascii_height, int ascii_width);
+
 		/** @brief Displays the skeleton frame of an ascii image.
 		*
 		*	The function primary use is to prevent wasting time/energy
@@ -63,7 +67,7 @@ class Vid2Ascii {
 		*
 		*	@return Void.
 		*/
-		void displaySize(float resize_ratio, float cell_height, float cell_width);
+		void adjustOutputSize(float resize_ratio, float _cell_height, float _cell_width);
 
 		/** @brief Changes the brightness/contrast of an image.
 		 *
@@ -76,14 +80,20 @@ class Vid2Ascii {
 		 */
 		void ctrl_brightness_contrast(cv::Mat input, cv::Mat& output, float alpha, int beta);
 		void playBack();
+		
 	public:
-		//Constructor
+		void generateAscii(int th_id, int num_ths);
+		/** @brief Constructor
+		*
+		*	@param filepath
+		*	@param intensity_chars
+		*/
 		Vid2Ascii(std::string filepath, std::string intensity_chars);
 
-		//Deconstuctor
+		/** @brief Deconstructor - Deallocates map, vid_frames, ascii_frames */
 		~Vid2Ascii();
 
-		void stor_N_resize_input(bool resize);
+		void readFrames();
 
 
 		void convert(float resize_ratio, float cell_width, float cell_height);

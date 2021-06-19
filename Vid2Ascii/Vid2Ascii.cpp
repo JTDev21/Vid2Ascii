@@ -1,20 +1,19 @@
 #include <chrono>
 #include <iostream>
 #include <opencv2/opencv.hpp>
-#include <opencv2/core/utility.hpp>
+//#include <opencv2/core/utility.hpp>
 #include <string>
+#include <thread>
 #include "Vid2Ascii.h"
-#include <windows.h>
 
-#define NOMINMAX
-#define WIN32_LEAN_AND_MEAN
-
+#include <mutex>
 /* Use ratio 0-1 to resize video, cell height/width should be fixed */
 
 Vid2Ascii::Vid2Ascii(std::string _filepath, std::string intensity_chars)
 {
 	output_vid.cell_height = 7;
 	output_vid.cell_width = 2.5;
+	frames_processed = 0;
 
 	cv::VideoCapture video(_filepath);
 	// Check if video file is opened
@@ -26,8 +25,11 @@ Vid2Ascii::Vid2Ascii(std::string _filepath, std::string intensity_chars)
 	filepath = _filepath;
 
 	input_vid.total_frames = video.get(cv::CAP_PROP_FRAME_COUNT) - 1;
+	//input_vid.total_frames = 1000;
+
+	int total_frames = input_vid.total_frames;
 	input_vid.fps = video.get(cv::CAP_PROP_FPS);
-	input_vid.total_duration = input_vid.total_frames / input_vid.fps;
+	input_vid.total_duration = total_frames / input_vid.fps;
 
 	cv::Mat frame;
 	video >> frame;
@@ -42,8 +44,8 @@ Vid2Ascii::Vid2Ascii(std::string _filepath, std::string intensity_chars)
 		map[i] = intensity_chars[i];
 	}
 
-	vid_frames = new cv::Mat[input_vid.total_frames];
-	ascii_frames = new std::string[input_vid.total_frames];
+	vid_frames = new cv::Mat[total_frames];
+	ascii_frames = new std::string[total_frames];
 	video.release();
 }
 
@@ -56,112 +58,8 @@ Vid2Ascii::~Vid2Ascii()
 	delete[] ascii_frames;
 }
 
-void Vid2Ascii::setCursorPosition(int x, int y)
-{
-	static const HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-	COORD coord = { (SHORT)x, (SHORT)y };
-	SetConsoleCursorPosition(hOut, coord);
-}
-
-void Vid2Ascii::progressBar(int idx) 
-{
-	float barWidth = 40;
-	float progress = idx * 1.0 / input_vid.total_frames;
-	float pos = barWidth * progress;
-
-	std::cout << "[" << (int)(idx * 100) / input_vid.total_frames << "%]";
-
-	std::string bar;
-	bar += "[";
-	for (int i = 0; i < barWidth; i++) {
-		(i <= pos ? bar += "#" : bar += "=");
-	}
-	bar += "]";
-	std::cout << bar << " " << idx << "/" << input_vid.total_frames << std::endl;
-}
-
-
-void Vid2Ascii::stor_N_resize_input(bool resize) 
-{
-	system("CLS");
-	if (resize)
-		std::cout << "Resizing" << std::endl;
-	else
-		std::cout << "Skipping resizing" << std::endl;
-
-	cv::VideoCapture video(filepath);
-	cv::Mat frame;
-
-	int output_width = output_vid.width;
-	int output_height = output_vid.height;
-	int total_frames = input_vid.total_frames;
-
-	for(int i = 0; i < total_frames; i++) {
-		video >> frame;
-		if(resize)
-			cv::resize(frame, frame, cv::Size(output_width, output_height));
-		vid_frames[i] = frame.clone();
-
-		setCursorPosition(0,1);
-		progressBar(i);
-	}
-	// Deallocate memory and clear *capture pointer
-	video.release();
-}
-
-void Vid2Ascii::displaySize(float resize_ratio, float _cell_height, float _cell_width) 
-{
-	system("CLS");
-
-	output_vid.cell_height = _cell_height;
-	output_vid.cell_width = _cell_width;
-
-	output_vid.height = input_vid.height * resize_ratio;
-	output_vid.width = input_vid.width * resize_ratio;
-
-	output_vid.ascii_height = output_vid.height / _cell_height;
-	output_vid.ascii_width = output_vid.width / _cell_width;
-
-	int ascii_height = output_vid.ascii_height;
-	for (int i = 0; i < ascii_height; i++) {
-		std::cout << "#\n";
-	}
-
-	setCursorPosition(0, 0);
-	int ascii_width = output_vid.ascii_width;
-	for (int i = 0; i < ascii_width; i++) {
-		std::cout << "#";
-	}
-
-	setCursorPosition(0, ascii_height + 1);
-	char res;
-	std::cout << "Resize output size? y/n -> ";
-	std::cin >> res;
-	res = std::tolower(res);
-
-	if (res == 'y') {
-		std::cout << "Current resize ratio: " << resize_ratio << std::endl;
-		std::cout << "New ratio: ";
-		std::cin >> resize_ratio;
-
-		std::cout << "Current cell width: " << _cell_width << std::endl;
-		std::cout << "New cell width: ";
-		std::cin >> _cell_width;
-
-		std::cout << "Current cell height: " << _cell_height << std::endl;
-		std::cout << "New cell height: ";
-		std::cin >> _cell_height;
-
-		displaySize(resize_ratio, _cell_height, _cell_width);
-	}
-
-	if (res == 'n' && resize_ratio == 1)
-		stor_N_resize_input(0);
-	else if (res == 'n' && resize_ratio != 1)
-		stor_N_resize_input(1);
-}
-
-void Vid2Ascii::ctrl_brightness_contrast(cv::Mat input, cv::Mat& output, float alpha, int beta) 
+/* -------------------------------------------------------- */
+void Vid2Ascii::ctrl_brightness_contrast(cv::Mat input, cv::Mat& output, float alpha, int beta)
 {
 	/*
 		alpha - Simple contrast control
@@ -182,25 +80,63 @@ void Vid2Ascii::ctrl_brightness_contrast(cv::Mat input, cv::Mat& output, float a
 		}
 	}
 }
+/* -------------------------------------------------------- */
+
+
+void Vid2Ascii::readFrames() 
+{
+	bool resize = ((int)output_vid.resize_ratio == 1);
+	system("CLS");
+	if (!resize)
+		std::cout << "Reading/Resizing frames" << std::endl;
+	else
+		std::cout << "Reading frames" << std::endl;
+
+	cv::VideoCapture video(filepath);
+	cv::Mat frame;
+
+	int output_width = output_vid.width;
+	int output_height = output_vid.height;
+	int total_frames = input_vid.total_frames;
+
+	for(int i = 0; i < total_frames; i++) {
+		video >> frame;
+		if(!resize)
+			cv::resize(frame, frame, cv::Size(output_width, output_height));
+		vid_frames[i] = frame.clone();
+
+		setCursorPosition(0,1);
+		progressBar(i);
+	}
+	// Deallocate memory and clear *capture pointer
+	video.release();
+}
 
 void Vid2Ascii::playBack()
 {
 	system("CLS");
 	setCursorPosition(0, 0);
-	std::cout << "--Play--" << std::endl;
-	cv::waitKey(1000);
+	std::cout << ascii_frames[0] << std::endl;
+	cv::resize(vid_frames[0], vid_frames[0], cv::Size(320, 180));
+	cv::imshow("Bad Apple", vid_frames[0]);
+
+	cv::waitKey(2000);
 
 	auto start = std::chrono::steady_clock::now();
 	float curr_fps = 0;
-	for (int i = 0; i < input_vid.total_frames; i++) {
+	int total_frames = input_vid.total_frames;
+	int total_duration = input_vid.total_duration;
+	for (int i = 0; i < total_frames; i++) {
 		setCursorPosition(0, 0);
 		std::cout << ascii_frames[i] << std::endl;
+
+		cv::resize(vid_frames[i], vid_frames[i], cv::Size(320, 180));
 		cv::imshow("Bad Apple", vid_frames[i]);
 
 		auto end = std::chrono::steady_clock::now();
 		std::chrono::duration<double> elapsed_seconds = end - start;
 		progressBar(i);
-		std::cout << "Duration " << (int)elapsed_seconds.count() << "s --- " << input_vid.total_duration << "s       " << std::endl;
+		std::cout << "Duration " << (int)elapsed_seconds.count() << "s --- " << total_duration << "s       " << std::endl;
 
 
 		curr_fps = i / elapsed_seconds.count();
@@ -224,28 +160,82 @@ void Vid2Ascii::playBack()
 	Add a function for preprocessing options
 */
 
+///* -------------------------------------------------------------- */
+//void Vid2Ascii::convert(float resize_ratio = 1, float cell_width = 2.5, float cell_height = 7) 
+//{
+//	adjustOutputSize(resize_ratio, cell_height, cell_width);
+//	readFrames();
+//
+//	//setCursorPosition(0, 0);
+//	std::cout << "\nVideo to Ascii Conversion" << std::endl;
+//	auto start = std::chrono::steady_clock::now();
+//	int total_frames = input_vid.total_frames;
+//	int ascii_output_height = output_vid.ascii_height;
+//	int ascii_output_width = output_vid.ascii_width;
+//	cell_width = output_vid.cell_width;
+//	cell_height = output_vid.cell_height;
+//	for (int i = 0; i < total_frames; i++) {
+//		std::string placeholder;
+//		for (int hnum = 0; hnum < ascii_output_height; hnum++) {
+//			for (int wnum = 0; wnum < ascii_output_width; wnum++) {
+//				// Display ROI(region of interest) bounding box
+//				/*cv::Mat canvas = vid_frames[i].clone();
+//				cv::rectangle(canvas, cv::Point(wnum*cell_width, hnum*cell_height), cv::Point(wnum * cell_width+ cell_width, hnum * cell_height+ cell_height), cv::Scalar(0,0,255));
+//				cv::imshow("crop", canvas);
+//				cv::waitKey(1);*/
+//
+//				// Get ROI position
+//				int roi_x = wnum * cell_width;
+//				int roi_y = hnum * cell_height;
+//
+//				// Get ROI by cropping
+//				cv::Mat roi(vid_frames[i], cv::Rect(roi_x, roi_y, cell_width, cell_height));
+//
+//				// Calculate intensity by pixel/area
+//				int intensity = cv::mean(roi)[0];
+//				placeholder += map[(255 - intensity) * num_map_chars / 256];
+//			}
+//			placeholder += "\n";
+//		}
+//		ascii_frames[i] = placeholder;
+//
+//		setCursorPosition(0, 4);
+//		progressBar(i);
+//	}
+//	auto end = std::chrono::steady_clock::now();
+//	std::chrono::duration<double> elapsed_seconds = end - start;
+//	std::cout << "---" << std::endl;
+//	std::cout << "Processing time: " << elapsed_seconds.count() << "s" << std::endl;
+//	std::cout << "---" << std::endl;
+//	
+//	std::cout << "Press any key to start ..." << std::endl;
+//	char wait_input;
+//	std::cin >> wait_input;
+//
+//	playBack();
+//}
+///* -------------------------------------------------------------- */
 
-void Vid2Ascii::convert(float resize_ratio = 1, float cell_width = 2.5, float cell_height = 7) 
+std::mutex mu;
+void Vid2Ascii::generateAscii(int th_id, int num_ths)
 {
-	displaySize(resize_ratio, cell_height, cell_width);
-	
-	// Overwrite console with space
-	setCursorPosition(0, 0);
-	for (int i = 0; i < 10; i++) {
-		for (int j = 0; j < 3000; j++) {
-			std::cout << " ";
-		}
-		std::cout << std::endl;
+	if (th_id == 0 || num_ths == 0) {
+		std::cout << "You cannot have zero threads!" << std::endl;
+		exit(0);
 	}
-
-	std::cout << "Video to Ascii Conversion" << std::endl;
-	auto start = std::chrono::steady_clock::now();
 	int total_frames = input_vid.total_frames;
+	int max_frames = total_frames / num_ths;
+
+	int start = (th_id-1) * max_frames;
+	int end = (th_id != num_ths ? 
+								(th_id-1) * max_frames + max_frames - 1 :
+								total_frames);
+
 	int ascii_output_height = output_vid.ascii_height;
 	int ascii_output_width = output_vid.ascii_width;
-	cell_width = output_vid.cell_width;
-	cell_height = output_vid.cell_height;
-	for (int i = 0; i < total_frames; i++) {
+	int cell_width = output_vid.cell_width;
+	int cell_height = output_vid.cell_height;
+	for (int i = start; i < end; i++) {
 		std::string placeholder;
 		for (int hnum = 0; hnum < ascii_output_height; hnum++) {
 			for (int wnum = 0; wnum < ascii_output_width; wnum++) {
@@ -254,6 +244,7 @@ void Vid2Ascii::convert(float resize_ratio = 1, float cell_width = 2.5, float ce
 				cv::rectangle(canvas, cv::Point(wnum*cell_width, hnum*cell_height), cv::Point(wnum * cell_width+ cell_width, hnum * cell_height+ cell_height), cv::Scalar(0,0,255));
 				cv::imshow("crop", canvas);
 				cv::waitKey(1);*/
+
 
 				// Get ROI position
 				int roi_x = wnum * cell_width;
@@ -270,15 +261,67 @@ void Vid2Ascii::convert(float resize_ratio = 1, float cell_width = 2.5, float ce
 		}
 		ascii_frames[i] = placeholder;
 
-		setCursorPosition(0, 1);
-		progressBar(i);
+		mu.lock();
+		setCursorPosition(0, 4 + th_id);
+		frames_processed++;
+		std::cout << "Threads[" << th_id << "]";
+		progressBar(frames_processed);
+		mu.unlock();
 	}
+}
+
+
+
+void Vid2Ascii::convert(float resize_ratio = 1, float cell_width = 2.5, float cell_height = 7)
+{
+	adjustOutputSize(resize_ratio, cell_height, cell_width);
+	readFrames();
+
+	/*
+		std::thread::hardware_concurrency() will return the 
+		number of concurrent threads supported by the hardware.
+		If the number of concurrent threads not supported in the
+		hardware implementation the function will return 0.
+	*/
+	
+	//unsigned int max_threads = std::thread::hardware_concurrency();
+	
+	unsigned int max_threads = 8;
+	std::cout << "\nVideo to Ascii Conversion" << std::endl;
+	auto start = std::chrono::steady_clock::now();
+
+	// generateAscii(1,1);
+
+	std::thread th1([&] { generateAscii(1, max_threads); });
+	std::thread th2([&] { generateAscii(2, max_threads); });
+	std::thread th3([&] { generateAscii(3, max_threads); });
+	std::thread th4([&] { generateAscii(4, max_threads); });
+	std::thread th5([&] { generateAscii(5, max_threads); });
+	std::thread th6([&] { generateAscii(6, max_threads); });
+	std::thread th7([&] { generateAscii(7, max_threads); });
+	std::thread th8([&] { generateAscii(8, max_threads); });
+
+	th1.join();
+	th2.join();
+	th3.join();
+	th4.join();
+	th5.join();
+	th6.join();
+	th7.join();
+	th8.join();
+
 	auto end = std::chrono::steady_clock::now();
 	std::chrono::duration<double> elapsed_seconds = end - start;
+
+	setCursorPosition(0, 15);
 	std::cout << "---" << std::endl;
 	std::cout << "Processing time: " << elapsed_seconds.count() << "s" << std::endl;
 	std::cout << "---" << std::endl;
-	std::cin.get();
+	std::cout << "frames_processed: " << frames_processed << std::endl;
+
+	std::cout << "Press any key to start ..." << std::endl;
+	char wait_input;
+	std::cin >> wait_input;
 
 	playBack();
 }
