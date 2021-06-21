@@ -2,6 +2,7 @@
 #include <string>
 #include "Vid2Ascii.h"
 
+
 int main(int argc, char** argv)
 {
 	std::string filepath;
