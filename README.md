@@ -7,5 +7,9 @@ If for some reason, the console displays no ascii converted frames then check th
   - To resolve this issue try adding more threads, by typing 'y' to "resize output"
   - Or set "Using threads" to 0. The only problem with this is you are not going to be viewing the converted video in real-time.
 
+### Notes
+- There's an exe file in case you do not want to compile my code.
+- There is no audio support.
+
 ### Bad Apple
 https://www.youtube.com/watch?v=a1omROIEgd8
