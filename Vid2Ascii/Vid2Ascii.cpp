@@ -80,13 +80,13 @@ void Vid2Ascii::playBack()
 
 		setCursorPosition(0, 0);
 		std::cout << ascii_frames[i];
-		cv::imshow("Bad Apple", frame);
+		cv::imshow(" ", frame);
 
 		auto end = std::chrono::steady_clock::now();
 		std::chrono::duration<double> elapsed_seconds = end - start;
 		progressBar(i, total_frames);
-		std::cout << "Duration " << (int)elapsed_seconds.count() << "s --- " << total_duration << "s       " << std::endl;
-		std::cout << "Using " << use_n_threads << " threads       ";
+		std::cout << "[Current time] " << (int)elapsed_seconds.count() << "s       [Duration] " << total_duration << "s       " << std::endl;
+		std::cout << "[# threads] " << use_n_threads << "       ";
 
 		curr_fps = i / elapsed_seconds.count();
 		std::cout << "[Target FPS] "<< input_vid.fps << "fps       [Current FPS] " << curr_fps << "       " << std::endl;
