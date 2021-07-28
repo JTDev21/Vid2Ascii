@@ -12,4 +12,5 @@ If for some reason, the console displays no ascii converted frames then check th
 - There is no audio support.
 
 ### Bad Apple
+[!image](https://github.com/josh-truong/Vid2Ascii/blob/master/demo.png)
 https://www.youtube.com/watch?v=a1omROIEgd8
