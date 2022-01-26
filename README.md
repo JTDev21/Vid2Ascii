@@ -10,7 +10,7 @@ If for some reason, the console displays no ascii converted frames then check th
 ### Notes
 - There's an exe file in case you do not want to compile my code.
 - There is no audio support.
-- [Reference] (https://stackoverflow.com/questions/32987103/image-to-ascii-art-conversion)
+- ![Reference](https://stackoverflow.com/questions/32987103/image-to-ascii-art-conversion)
 
 ### Bad Apple
 ![image](demo.png)
